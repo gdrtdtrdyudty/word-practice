@@ -1,0 +1,11 @@
+# 仓库内与工作区统一用 LF，避免 Windows 检出时把文件改写成 CRLF
+* text=auto eol=lf
+
+# Windows 批处理脚本必须用 CRLF，否则在 Windows 上可能执行异常
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 二进制文件不做换行符转换
+*.zip binary
+*.png binary
+*.ico binary

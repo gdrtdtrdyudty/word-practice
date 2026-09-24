@@ -1,0 +1,25 @@
+# 依赖
+node_modules/
+
+# 密钥与环境变量（本项目 Key 存在浏览器，无需配置文件，防止误提交）
+.env
+.env.*
+*.key
+*.pem
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+
+# 系统
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# 临时 / 备份 / 日志
+~$*
+*.bak
+*.tmp
+*.log
+*.pid
