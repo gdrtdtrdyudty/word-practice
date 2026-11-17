@@ -101,6 +101,10 @@
     display:inline-block;padding:2px 9px;border-radius:8px;margin-top:10px}
   .answer-box{max-width:460px;margin:0 auto}
   .answer-box input{text-align:center;font-size:24px;padding:14px;letter-spacing:.5px;font-weight:600}
+  .answer-box .tip{margin-top:9px;text-align:center;font-size:12.5px;color:var(--muted);line-height:1.8}
+  .answer-box .tip b{color:var(--brand);font-weight:700}
+  kbd{background:#eef3ef;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;
+    padding:0 5px;font-size:11.5px;font-family:inherit;color:var(--brand);font-weight:700;white-space:nowrap}
   .feedback{max-width:460px;margin:16px auto 0;min-height:56px}
   .feedback .fb{display:none;padding:13px 16px;border-radius:12px;font-size:15px}
   .feedback .fb.show{display:block;animation:pop .18s ease}
@@ -124,6 +128,32 @@
     font-size:13px;margin:3px 3px 0 0;cursor:pointer}
   .chip.again{background:#fbeceb;color:var(--bad)}
   .chip:hover{transform:translateY(-1px)}
+  /* 积分累计器 */
+  .points-card{margin-top:16px;padding:16px 20px;display:flex;flex-direction:column;gap:9px}
+  .pc-head{display:flex;align-items:center;gap:12px}
+  .pc-label{font-size:12px;font-weight:700;letter-spacing:2px;color:var(--muted)}
+  .pc-num{position:relative;margin-left:auto;display:flex;align-items:baseline;gap:4px;
+    font-size:32px;font-weight:800;color:var(--brand);line-height:1}
+  .pc-num small{font-size:13px;font-weight:700;color:var(--muted);margin-left:2px}
+  .pc-num.up{animation:pcUp .6s ease}
+  .pc-num.down{animation:pcDown .6s ease}
+  .pc-float{position:absolute;right:calc(100% + 10px);top:50%;margin-top:-8px;font-style:normal;
+    font-size:13px;font-weight:800;opacity:0;transform:translateX(6px);
+    transition:opacity .35s,transform .35s;pointer-events:none}
+  .pc-float.show{opacity:1;transform:translateX(0)}
+  .pc-float.up{color:var(--good)} .pc-float.down{color:var(--bad)}
+  @keyframes pcUp{0%{transform:scale(1)}30%{transform:scale(1.16);color:var(--good)}100%{transform:scale(1);color:var(--brand)}}
+  @keyframes pcDown{0%{transform:scale(1)}30%{transform:scale(1.16);color:var(--bad)}100%{transform:scale(1);color:var(--brand)}}
+  .pc-chips{display:flex;gap:8px;flex-wrap:wrap}
+  .pc-chip{font-size:12.5px;color:var(--muted);background:#f4f8f5;border:1px solid var(--line);
+    border-radius:8px;padding:4px 10px;white-space:nowrap}
+  .pc-chip b{color:var(--brand);font-weight:800;margin-left:3px}
+  .pc-chip.bad b{color:var(--bad)}
+  .pc-rule{font-size:11.5px;color:var(--muted);line-height:1.8}
+  .pc-rule b{color:var(--brand);font-weight:800}
+  .pc-rule b.neg{color:var(--bad)}
+  .penalty-note{display:inline-block;margin-top:10px;background:#fbeceb;color:var(--bad);
+    font-size:12.5px;font-weight:700;padding:5px 12px;border-radius:8px}
   .hide{display:none!important}
   .footnote{color:var(--muted);font-size:12px;text-align:center;margin-top:26px;line-height:1.8}
   .kv{font-size:13px;color:var(--muted);line-height:2}
@@ -203,7 +233,8 @@
   <section id="view-practice" class="hide">
     <div class="panel" id="setupPanel">
       <h2>开始练习</h2>
-      <p class="hint">从词库随机抽取若干单词，给你看<b>中文（带词性）</b>，你回想并输入英文，系统判断对错。</p>
+      <p class="hint">从词库随机抽取若干单词，给你看<b>中文（带词性）</b>，你回想并输入英文，系统判断对错。<br>
+        按 <kbd>Enter</kbd> 判定，再按一次 <kbd>Enter</kbd> 直接进入下一题。</p>
       <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px">每次抽取数量</label>
       <input type="range" id="countSlider" min="1" max="50" step="1" value="20" style="width:100%;accent-color:var(--brand)">
       <div style="font-size:13px;color:var(--muted);margin-top:2px">本次抽 <b id="countVal">20</b> 个</div>
@@ -226,6 +257,7 @@
         <div class="answer-box">
           <input type="text" id="ansInput" autocomplete="off" autocapitalize="off" spellcheck="false"
                  placeholder="输入英文后回车" />
+          <div class="tip">回车判定　·　连按两次 <kbd>Enter</kbd> 直接下一题<br>判定后<b>仍可修改答案</b>，改完再回车重新判定</div>
         </div>
         <div class="feedback"><div class="fb" id="fbBox"></div></div>
         <div class="result-actions hide" id="duringActions">
@@ -238,6 +270,7 @@
       <div class="result-card">
         <div class="ring" id="ring"><div><span id="scoreBig">0</span></div></div>
         <div class="pct" id="scorePct"></div>
+        <div class="penalty-note hide" id="penaltyNote">本轮全错 · 积分 −5</div>
         <div class="result-words">
           <div class="l" id="wrongTitle" style="display:none">答错的（点击可单独再练）</div>
           <div id="wrongWords"></div>
@@ -250,6 +283,20 @@
         <button class="btn primary" id="onlyWrongBtn">只练答错的</button>
         <button class="btn ghost" id="backSetupBtn">调整设置</button>
       </div>
+    </div>
+
+    <!-- 积分累计器 -->
+    <div class="panel points-card" id="pointsPanel">
+      <div class="pc-head">
+        <span class="pc-label">积分累计</span>
+        <span class="pc-num" id="pcNum"><span id="pointsVal">0</span><small>分</small><i class="pc-float" id="pcFloat"></i></span>
+      </div>
+      <div class="pc-chips">
+        <span class="pc-chip">词库<b id="pcWords">+0</b></span>
+        <span class="pc-chip">答对<b id="pcCorrect">+0</b></span>
+        <span class="pc-chip bad" id="pcWrongChip">全错<b id="pcWrong">0</b>次</span>
+      </div>
+      <div class="pc-rule">词库每加 1 个词 <b>+0.1</b>　·　答对 1 题 <b>+1</b>　·　一整轮全错 <b class="neg">−5</b>　·　最低 <b>0</b> 分（只记在本机浏览器）</div>
     </div>
   </section>
 
@@ -290,6 +337,59 @@ function load(){ try{ return JSON.parse(localStorage.getItem(LS_KEY))||[]; }catc
 function save(){ localStorage.setItem(LS_KEY, JSON.stringify(words)); }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function getKey(){ return localStorage.getItem(LS_KEY_API)||''; }
+
+/* ================= 积分累计器 =================
+   加词 +0.1 / 答对 +1 / 一整轮全错 −5 / 总分最低 0。
+   积分是"事件累加"：删词不扣分，已得的词库分保留。 */
+const LS_KEY_POINTS='wp-points';
+const round1=n=>Math.round(n*10)/10;
+const fmtPts=n=>Number.isInteger(n)?String(n):n.toFixed(1);
+let points=initPoints();
+function initPoints(){
+  try{
+    const p=JSON.parse(localStorage.getItem(LS_KEY_POINTS));
+    if(p && typeof p==='object'){
+      return {
+        total:Math.max(0,round1(Number(p.total)||0)),
+        fromWords:Math.max(0,round1(Number(p.fromWords)||0)),
+        fromCorrect:Math.max(0,Math.floor(Number(p.fromCorrect)||0)),
+        allWrong:Math.max(0,Math.floor(Number(p.allWrong)||0)),
+        penalty:Math.max(0,round1(Number(p.penalty)||0))
+      };
+    }
+  }catch(e){}
+  // 首次启用：把词库里已有的词按 0.1/个补记
+  const init=round1(words.length/10);
+  return {total:init,fromWords:init,fromCorrect:0,allWrong:0,penalty:0};
+}
+function savePoints(){ try{ localStorage.setItem(LS_KEY_POINTS, JSON.stringify(points)); }catch(e){} }
+savePoints();
+function addPointQuiet(delta){ points.total=Math.max(0,round1(points.total+delta)); savePoints(); }
+function awardPoints(delta){
+  const before=points.total;
+  addPointQuiet(delta);
+  const real=round1(points.total-before);
+  renderPoints(real);
+  return real;
+}
+let pcPulseTimer;
+function pulsePoints(delta){
+  const num=document.getElementById('pcNum'), fl=document.getElementById('pcFloat');
+  num.classList.remove('up','down'); void num.offsetWidth;
+  num.classList.add(delta>0?'up':'down');
+  fl.textContent=(delta>0?'+':'−')+fmtPts(Math.abs(delta));
+  fl.className='pc-float show '+(delta>0?'up':'down');
+  clearTimeout(pcPulseTimer);
+  pcPulseTimer=setTimeout(()=>{ fl.className='pc-float'; num.classList.remove('up','down'); },1200);
+}
+function renderPoints(delta){
+  document.getElementById('pointsVal').textContent=fmtPts(points.total);
+  document.getElementById('pcWords').textContent='+'+fmtPts(points.fromWords);
+  document.getElementById('pcCorrect').textContent='+'+points.fromCorrect;
+  document.getElementById('pcWrong').textContent=points.allWrong;
+  document.getElementById('pcWrongChip').title='累计扣分 −'+fmtPts(points.penalty);
+  if(delta) pulsePoints(delta);
+}
 
 /* ================= 联网：本地服务(DeepSeek) + 词典回退 ================= */
 const POS_MAP={noun:'n.',verb:'v.',adjective:'adj.',adverb:'adv.',pronoun:'pron.',preposition:'prep.',
@@ -351,9 +451,12 @@ function add(en,zh,pos){
   const e=en.trim(), z=(zh||'').trim();
   if(!e) return {ok:false,msg:'英文不能为空'};
   const n=norm(e); const i=words.findIndex(w=>norm(w.en)===n);
-  if(i>=0){ if(z) words[i].zh=z; if(pos) words[i].pos=pos; save(); return {ok:true,msg:'已更新'}; }
+  if(i>=0){ if(z) words[i].zh=z; if(pos) words[i].pos=pos; save(); return {ok:true,msg:'已更新',added:false}; }
   words.push({id:uid(),en:e,zh:z,pos:pos||'',correct:0,wrong:0,createdAt:Date.now()});
-  save(); return {ok:true,msg:'已添加'};
+  save();
+  points.fromWords=round1(points.fromWords+0.1);
+  addPointQuiet(0.1); // 词库 +0.1（调用方负责 renderPoints）
+  return {ok:true,msg:'已添加',added:true};
 }
 
 /* ================= 单条添加 ================= */
@@ -377,8 +480,9 @@ async function doSingleAdd(){
     let zh=hasManual?zhBox.value.trim():r.zh;
     if(!zh){ setSingle('warn',`已识别词性 <span class="tag big">${esc(r.pos)}</span> 但未能得到中文，请在中文框手动填写后再点一次。`);
       btn.disabled=false; btn.textContent='识别并添加'; zhBox.focus(); return; }
-    add(en, zh, r.pos);
-    setSingle('ok',`✅ 已录入 <b>${esc(en)}</b> · <span class="tag big" style="color:#fff;background:rgba(255,255,255,.25)">${esc(r.pos)||'?'}</span> ${esc(zh)}`);
+    const added=add(en, zh, r.pos);
+    setSingle('ok',`✅ 已录入 <b>${esc(en)}</b> · <span class="tag big" style="color:#fff;background:rgba(255,255,255,.25)">${esc(r.pos)||'?'}</span> ${esc(zh)}${added.added?'　·　积分 +0.1':''}`);
+    renderPoints();
     enBox.value=''; zhBox.value=''; enBox.focus();
   }catch(e){
     if(e.code==='no-key'||e.code==='auth'){ setSingle('warn','⚠️ 尚未配置或 Key 无效，请到【设置】填写 API Key。当前已回退到词典接口。 <button class="btn link" onclick="manualSingleAdd()">仍手动添加</button>'); }
@@ -389,9 +493,10 @@ async function doSingleAdd(){
 function manualSingleAdd(){
   const en=document.getElementById('singleEn').value.trim(), zh=document.getElementById('singleZh').value.trim();
   if(!zh){ setSingle('warn','手动添加需要填写中文释义。'); return; }
-  add(en,zh,''); setSingle('ok',`✅ 已手动添加 <b>${esc(en)}</b>（未填词性）· ${esc(zh)}`);
+  const added=add(en,zh,'');
+  setSingle('ok',`✅ 已手动添加 <b>${esc(en)}</b>（未填词性）· ${esc(zh)}${added.added?'　·　积分 +0.1':''}`);
   document.getElementById('singleEn').value=''; document.getElementById('singleZh').value='';
-  renderList(); updatePoolHint();
+  renderPoints(); renderList(); updatePoolHint();
 }
 
 /* ================= 批量导入 ================= */
@@ -413,7 +518,7 @@ async function doBulk(){
   btn.disabled=true; st.className='status'; st.innerHTML='';
   cnt.textContent=`处理中 0/${jobs.length}…`;
   const modeEl=document.getElementById('modelMode');
-  let fails=[];
+  let fails=[]; let gainedWords=0;
   try{
     if(getKey()){
       const res=await checkWords(jobs.map(j=>j.en)); // 一次调用
@@ -422,7 +527,7 @@ async function doBulk(){
         if(!r||!r.valid){ fails.push({en:j.en,why: r&&r.reason==='network'?'断网': r&&r.reason==='miss'?'漏词':'查不到'}); continue; }
         const z=j.manual?j.zh:r.zh;
         if(!z){ fails.push({en:j.en,why:'未译出中文'}); continue; }
-        add(j.en,z,r.pos);
+        const a=add(j.en,z,r.pos); if(a.added) gainedWords++;
       }
     }else{
       const res=await checkWords(jobs.map(j=>j.en)); // 词典回退并发
@@ -431,7 +536,7 @@ async function doBulk(){
         if(!r||!r.valid){ fails.push({en:j.en,why:r&&r.reason==='network'?'断网':'查不到'}); continue; }
         const z=j.manual?j.zh:r.zh;
         if(!z){ fails.push({en:j.en,why:'未译出中文'}); continue; }
-        add(j.en,z,r.pos);
+        const a=add(j.en,z,r.pos); if(a.added) gainedWords++;
       }
     }
   }catch(e){
@@ -443,15 +548,16 @@ async function doBulk(){
     return;
   }
   btn.disabled=false; btn.textContent='联网批量导入';
-  const okN=jobs.length-fails.length;
-  cnt.textContent=`${okN}/${jobs.length} 成功${skipN?`（跳过 ${skipN}）`:''}`;
+  const okN=jobs.length-fails.length, gainedPts=round1(gainedWords*0.1);
+  cnt.textContent=`${okN}/${jobs.length} 成功${skipN?`（跳过 ${skipN}）`:''}${gainedPts?`　积分 +${fmtPts(gainedPts)}`:''}`;
   let html=`<span style="font-weight:700;color:var(--good)">✅ 成功 ${okN} / ${jobs.length}</span>`;
+  if(gainedPts) html+=`<span style="color:var(--muted)">　·　新增 ${gainedWords} 词，积分 +${fmtPts(gainedPts)}</span>`;
   if(fails.length) html+=`<br><span style="color:var(--bad)">❌ 失败 ${fails.length}：${esc(fails.map(f=>`${f.en}(${f.why})`).join('， '))}</span>`;
   if(skipN) html+=`<br><span>（跳过 ${skipN} 个空行/无英文行）</span>`;
   st.innerHTML=`<div class="b">${html}</div>`;
   st.className='status '+(fails.length?'warn':'ok');
   document.getElementById('bulkInput').value='';
-  renderList(); updatePoolHint(); updatePreview();
+  renderPoints(); renderList(); updatePoolHint(); updatePreview();
 }
 
 /* ================= 渲染：词库 ================= */
@@ -507,12 +613,14 @@ window.switchView=switchView; window.manualSingleAdd=manualSingleAdd;
 
 /* ================= 练习 ================= */
 let quiz=[], quizIdx=0, score=0, wrongSet=new Set(), countN=20;
+let graded=false, lastGiven='', lastOk=false; // 当前题是否已判定 + 上一次判定的答案，用于“可修改后重新判定”
+let roundClosed=false;                        // 本轮是否已结算过（防止全错扣分重复）
 function updatePoolHint(){ const el=document.getElementById('poolHint');
   el.innerHTML=words.length?`当前词库共 <b>${words.length}</b> 个单词，每次随机抽取 ${countN} 个。`:'词库为空，先到【词库】页录入单词吧。'; }
 function randomFrom(p,n){ const a=p.slice(),o=[]; const t=Math.min(n,a.length);
   for(let i=0;i<t;i++){ const j=Math.floor(Math.random()*a.length); o.push(a.splice(j,1)[0]); } return o; }
 function startQuiz(pool,count){
-  quiz=randomFrom(pool,count).map(w=>({...w})); quizIdx=0; score=0; wrongSet=new Set();
+  quiz=randomFrom(pool,count).map(w=>({...w})); quizIdx=0; score=0; wrongSet=new Set(); roundClosed=false;
   document.getElementById('setupPanel').classList.add('hide');
   document.getElementById('resultPanel').classList.add('hide');
   document.getElementById('quizPanel').classList.remove('hide');
@@ -526,23 +634,48 @@ function showQuestion(){
   document.getElementById('qNum').textContent=quizIdx+1;
   document.getElementById('barFill').style.width=(quizIdx/quiz.length*100)+'%';
   const inp=document.getElementById('ansInput'); inp.value=''; inp.disabled=false;
+  graded=false; lastGiven=''; lastOk=false;
   const fb=document.getElementById('fbBox'); fb.className='fb'; fb.textContent='';
   document.getElementById('duringActions').classList.add('hide');
   inp.focus();
 }
+/* 撤销上一题的判定，让“改答案后重新判定”只按最后一次算分，不重复累加统计 */
+function undoVerdict(q){
+  if(!graded) return;
+  if(lastOk) score=Math.max(0,score-1); else wrongSet.delete(q.id);
+  const w=words.find(x=>x.id===q.id);
+  if(w){ if(lastOk) w.correct=Math.max(0,w.correct-1); else w.wrong=Math.max(0,w.wrong-1); save(); }
+  graded=false; lastOk=false;
+}
 function submitAnswer(){
   const inp=document.getElementById('ansInput'), q=quiz[quizIdx];
   const given=inp.value.trim(); if(!given){ inp.focus(); return; }
-  inp.disabled=true;
   const ok=norm(given)===norm(q.en);
+  const regrade=graded, wasOk=lastOk;
+  undoVerdict(q);
+  if(ok) score++; else wrongSet.add(q.id);
   const w=words.find(x=>x.id===q.id);
   if(w){ ok?w.correct++:w.wrong++; save(); }
-  if(ok) score++; else wrongSet.add(q.id);
+  graded=true; lastGiven=given; lastOk=ok;
+  // 积分：答对 +1；改判时先撤掉上一次的 +1，只按最后一次算
+  const pDelta=(ok?1:0)-((regrade&&wasOk)?1:0);
+  if(pDelta){ points.fromCorrect=Math.max(0,points.fromCorrect+pDelta); awardPoints(pDelta); }
+  const note=regrade?'<div style="font-weight:500;font-size:12px;opacity:.85;margin-top:4px">（已按修改后的答案重新判定）</div>':'';
   const fb=document.getElementById('fbBox');
-  fb.innerHTML=ok?`<div class="fb good show">✅ 正确！<div class="correct-en">${esc(q.en)}</div></div>`
-    :`<div class="fb bad show">❌ 不对，正确是<div class="correct-en">${esc(q.en)}</div><div style="font-weight:400;font-size:13px;opacity:.9;margin-top:2px">你写的是：${esc(given)}</div></div>`;
+  fb.className='fb show '+(ok?'good':'bad');
+  fb.innerHTML=ok?`✅ 正确！<div class="correct-en">${esc(q.en)}</div>${note}`
+    :`❌ 不对，正确是<div class="correct-en">${esc(q.en)}</div><div style="font-weight:400;font-size:13px;opacity:.9;margin-top:2px">你写的是：${esc(given)}</div>${note}`;
   document.getElementById('barFill').style.width=((quizIdx+1)/quiz.length*100)+'%';
   document.getElementById('duringActions').classList.remove('hide');
+  inp.focus(); // 不锁输入框：判定后仍可修改，也能直接连按回车
+}
+/* 回车规则：未判定 → 判题；已判定且答案没改（或已清空）→ 下一题；改了答案 → 重新判题 */
+function onAnswerEnter(){
+  const inp=document.getElementById('ansInput');
+  const given=inp.value.trim();
+  if(!graded){ if(given) submitAnswer(); else inp.focus(); return; }
+  if(!given || given===lastGiven){ nextQuestion(); return; }
+  submitAnswer();
 }
 function nextQuestion(){ quizIdx++; quizIdx>=quiz.length?showResult():showQuestion(); }
 function showResult(){
@@ -552,6 +685,14 @@ function showResult(){
   document.getElementById('scoreBig').textContent=score;
   document.getElementById('scorePct').textContent=`答对 ${score}/${total} · ${pct}%`;
   document.getElementById('ring').style.setProperty('--p',pct);
+  // 一整轮全错：扣 5 分（每轮只扣一次，最低 0 分）
+  const allWrong=total>0 && wrongSet.size===total;
+  if(allWrong && !roundClosed){
+    roundClosed=true;
+    points.allWrong++; points.penalty=round1(points.penalty+5);
+    awardPoints(-5);
+  }
+  document.getElementById('penaltyNote').classList.toggle('hide', !allWrong);
   const wl=quiz.filter(q=>wrongSet.has(q.id));
   document.getElementById('wrongWords').innerHTML=wl.length
     ? wl.map(q=>`<span class="chip again" data-re="${q.id}">${esc(q.en)} ${esc(q.zh)}</span>`).join('')
@@ -565,7 +706,7 @@ function switchView(v){
   document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   ['words','practice','settings'].forEach(x=>document.getElementById('view-'+x).classList.toggle('hide',x!==v));
   if(v==='words') renderList();
-  if(v==='practice') updatePoolHint();
+  if(v==='practice'){ updatePoolHint(); renderPoints(); }
   if(v==='settings') checkServer();
 }
 document.querySelectorAll('nav.tabs button').forEach(b=>b.addEventListener('click',()=>switchView(b.dataset.view)));
@@ -581,8 +722,11 @@ document.getElementById('countSlider').addEventListener('input',e=>{ countN=+e.t
 document.getElementById('startBtn').addEventListener('click',()=>{
   if(!words.length){ toast('词库还是空的，先去录入'); switchView('words'); return; }
   startQuiz(words, Math.min(countN,words.length)); });
-document.getElementById('ansInput').addEventListener('keydown',e=>{ if(e.key!=='Enter')return;
-  document.getElementById('duringActions').classList.contains('hide')?submitAnswer():nextQuestion(); });
+document.getElementById('ansInput').addEventListener('keydown',e=>{
+  if(e.key!=='Enter'||e.isComposing||e.keyCode===229) return; // 中文输入法选词的回车不当作提交
+  if(e.repeat) return;                                          // 长按回车不连跳题
+  e.preventDefault();
+  onAnswerEnter(); });
 document.getElementById('nextBtn').addEventListener('click',nextQuestion);
 document.getElementById('againAllBtn').addEventListener('click',()=>startQuiz(words,Math.min(countN,words.length)));
 document.getElementById('onlyWrongBtn').addEventListener('click',()=>{
@@ -606,7 +750,7 @@ document.getElementById('wordList').addEventListener('click',e=>{
   if(ed){ const w=words.find(x=>x.id===ed.dataset.edit); if(!w)return;
     const en=prompt('英文：',w.en); if(en===null)return;
     const zh=prompt('中文：',w.zh||''); if(zh===null)return;
-    add(en,zh,w.pos); toast('已更新'); renderList(); } });
+    add(en,zh,w.pos); toast('已更新'); renderList(); renderPoints(); } });
 document.getElementById('clearBtn').addEventListener('click',()=>{
   if(!words.length){ toast('词库本来就是空的'); return; }
   if(confirm(`确定清空全部 ${words.length} 个单词？不可恢复。`)){ words=[]; save(); renderList(); updatePoolHint(); toast('已清空'); } });
@@ -623,7 +767,7 @@ let toastTimer;
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
   clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),2600); }
 
-updatePoolHint(); updatePreview(); renderList(); refreshMode();
+updatePoolHint(); updatePreview(); renderList(); refreshMode(); renderPoints();
 </script>
 </body>
 </html>
