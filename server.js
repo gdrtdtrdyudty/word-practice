@@ -70,6 +70,14 @@ function buildAllowlist(primary){
 }
 buildAllowlist('');   // 先用同步结果占位，启动前再用 detectPrimaryIPv4 修正
 
+/* 换 Wi-Fi / 插拔网线后 IP 会变：定期重新探测，二维码和白名单自动跟着更新 */
+async function refreshNetwork(){
+  const before = LAN_IPS.join(',');
+  buildAllowlist(await detectPrimaryIPv4());
+  if(LAN_IPS.join(',') !== before) console.log('局域网地址已更新: ' + LAN_IPS.map(ip=>'http://'+ip+':'+PORT+'/').join('  '));
+}
+setInterval(()=>{ refreshNetwork().catch(()=>{}); }, 20000).unref?.();
+
 function hostAllowed(req){
   return ALLOWED_HOSTS.has(String(req.headers.host || '').toLowerCase());
 }
@@ -248,6 +256,8 @@ const server = http.createServer(async (req, res)=>{
   try{
     /* ---- 共享数据 ---- */
     if(url.pathname === '/info' && req.method === 'GET'){
+      // 当前主 IP 已经不在本机网卡上（刚换了网络）→ 立刻重新探测
+      if(!PRIMARY_IP || !localIPv4List().some(x=>x.address === PRIMARY_IP)) { try{ await refreshNetwork(); }catch(e){} }
       json(res, 200, {
         port: Number(PORT),
         primary: PRIMARY_IP,
