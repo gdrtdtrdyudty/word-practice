@@ -1,10 +1,11 @@
 /* 背单词练习 · Service Worker（离线可用）
    改了静态资源后把 CACHE 版本号 +1，用户下次打开自动更新 */
-const CACHE = 'wp-static-v1';
+const CACHE = 'wp-static-v2';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
+  './vendor/qrcode.min.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',

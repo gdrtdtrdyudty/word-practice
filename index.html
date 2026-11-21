@@ -165,6 +165,18 @@
   .pc-rule b.neg{color:var(--bad)}
   .penalty-note{display:inline-block;margin-top:10px;background:#fbeceb;color:var(--bad);
     font-size:12.5px;font-weight:700;padding:5px 12px;border-radius:8px}
+  /* 手机扫码 / 局域网同步 */
+  .lan-box{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+  .qr-wrap{width:190px;height:190px;padding:6px;background:#fff;border:1px solid var(--line);
+    border-radius:12px;flex:none}
+  .qr-wrap canvas,.qr-wrap img{width:100%!important;height:100%!important;display:block}
+  .lan-side{flex:1;min-width:180px;font-size:13px;line-height:1.8;color:var(--muted)}
+  .lan-url{font-size:15px;font-weight:800;color:var(--brand);word-break:break-all}
+  .lan-note{margin-top:4px}
+  .lan-alts{font-size:12px;margin-top:6px;word-break:break-all}
+  .lan-sync{font-size:12px;margin-top:8px;color:var(--brand)}
+  .sync-badge{font-size:12px;color:var(--brand);background:var(--brand-soft);padding:3px 10px;
+    border-radius:20px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
   .hide{display:none!important}
   .footnote{color:var(--muted);font-size:12px;text-align:center;margin-top:26px;line-height:1.8}
   .kv{font-size:13px;color:var(--muted);line-height:2}
@@ -221,6 +233,8 @@
     .pc-num{font-size:27px}
     .pc-chip{font-size:11.5px;padding:4px 8px}
     .pc-rule{font-size:11px}
+    .lan-box{gap:12px}
+    .qr-wrap{width:150px;height:150px}
     .footnote{font-size:11.5px;margin-top:20px}
     .toast{bottom:calc(16px + env(safe-area-inset-bottom));font-size:12.5px;max-width:88vw}
   }
@@ -254,6 +268,7 @@
       <span class="statusdot" id="modelDot"></span>
       <span class="lbl" id="modelLbl">未连接大模型</span>
       <span style="font-size:12.5px;color:var(--muted)" id="modelMode"></span>
+      <button class="btn ghost small hide" id="lanScanBtn" onclick="openLanPanel()">📱 手机扫码</button>
       <button class="btn ghost small" style="margin-left:auto" onclick="switchView('settings')">配置 API Key</button>
     </div>
 
@@ -367,9 +382,23 @@
 
   <!-- ============ 设置视图 ============ -->
   <section id="view-settings" class="hide">
-    <div class="panel">
+    <div class="panel hide" id="lanPanel">
+      <h2>手机扫码连接 <span class="tag">同一 Wi-Fi</span></h2>
+      <p class="hint">手机和电脑连同一个 Wi-Fi，用手机相机扫下面的码（或直接输入网址），浏览器打开后就和电脑共用同一份词库和积分，改动实时同步。</p>
+      <div class="lan-box">
+        <div class="qr-wrap" id="qrBox"></div>
+        <div class="lan-side">
+          <div class="lan-url" id="lanUrl">正在获取局域网地址…</div>
+          <div class="lan-note" id="lanNote">扫码后无需安装，直接就是完整功能。</div>
+          <div class="lan-alts" id="lanAlts"></div>
+          <div class="lan-sync" id="lanSync"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px">
       <h2>大模型校验设置 <span class="tag">DeepSeek</span></h2>
-      <p class="hint">用大模型来校验单词、识别词性并翻译中文，比词典接口更准也更省（批量一次调用）。需要你在 DeepSeek 官网申请 API Key：<a href="https://platform.deepseek.com" target="_blank" rel="noopener">platform.deepseek.com</a> → API Keys → 创建。Key 只存在本机浏览器 localStorage，请求由本机服务或浏览器直接发往 DeepSeek，不经过其它服务器。</p>
+      <p class="hint">用大模型来校验单词、识别词性并翻译中文，比词典接口更准也更省（批量一次调用）。需要你在 DeepSeek 官网申请 API Key：<a href="https://platform.deepseek.com" target="_blank" rel="noopener">platform.deepseek.com</a> → API Keys → 创建。Key 只存在本机浏览器与电脑上的共享数据里，请求由本机服务或浏览器直接发往 DeepSeek，不经过其它服务器。</p>
 
       <div class="row">
         <input type="password" id="keyInput" placeholder="sk-… 粘贴你的 DeepSeek API Key" autocomplete="off" style="flex:2;min-width:200px" />
@@ -393,16 +422,22 @@
 </div>
 <div class="toast" id="toast"></div>
 
+<script src="./vendor/qrcode.min.js"></script>
 <script>
 /* ================= 数据层 ================= */
 const LS_KEY='word-practice-words', LS_KEY_API='wp-deepseek-key';
 const HOSTNAME=location.hostname;
-const IS_LOCAL=HOSTNAME==='127.0.0.1'||HOSTNAME==='localhost'||HOSTNAME==='[::1]'||HOSTNAME==='::1';
+const IS_LOOPBACK=HOSTNAME==='127.0.0.1'||HOSTNAME==='localhost'||HOSTNAME==='[::1]'||HOSTNAME==='::1';
+const IS_PRIVATE_IP=/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(HOSTNAME);
+const IS_SERVER=IS_LOOPBACK||IS_PRIVATE_IP;    // 页面由电脑上的 node 服务提供
+const IS_LAN_CLIENT=IS_SERVER&&!IS_LOOPBACK;   // 手机通过局域网打开
 const IS_TOUCH=!!(window.matchMedia&&matchMedia('(hover:none), (pointer:coarse)').matches);
-const API_HOST='http://127.0.0.1:'+(location.port||8111);
+let serverAPI=IS_SERVER;          // /info 探测失败会改成 false
+let lanInfo=null;                 // {port, primary, ips, urls, hasKey}
+let syncReady=false, syncRev=0, syncPushing=false, syncApplying=false, syncTimer=0, syncPoll=0;
 let words=load();
 function load(){ try{ return JSON.parse(localStorage.getItem(LS_KEY))||[]; }catch(e){ return []; } }
-function save(){ localStorage.setItem(LS_KEY, JSON.stringify(words)); }
+function save(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(words)); }catch(e){} scheduleSync(); }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function getKey(){ return localStorage.getItem(LS_KEY_API)||''; }
 
@@ -430,7 +465,7 @@ function initPoints(){
   const init=round1(words.length/10);
   return {total:init,fromWords:init,fromCorrect:0,allWrong:0,penalty:0};
 }
-function savePoints(){ try{ localStorage.setItem(LS_KEY_POINTS, JSON.stringify(points)); }catch(e){} }
+function savePoints(){ try{ localStorage.setItem(LS_KEY_POINTS, JSON.stringify(points)); }catch(e){} scheduleSync(); }
 savePoints();
 function addPointQuiet(delta){ points.total=Math.max(0,round1(points.total+delta)); savePoints(); }
 function awardPoints(delta){
@@ -486,16 +521,15 @@ function alignResults(enList,raw){
   });
 }
 async function serverAlive(){
-  if(!IS_LOCAL) return false;
-  try{ const r=await fetch(API_HOST+'/index.html',{method:'HEAD'}); return true; }catch(e){ return false; }
+  if(!serverAPI) return false;
+  try{ const r=await fetch('./info',{cache:'no-store'}); return r.ok; }catch(e){ return false; }
 }
-// 本机模式：一次请求发给本地服务 -> DeepSeek（Key 不经过跨域）
+// 本机 / 局域网模式：一次请求发给电脑上的服务 -> DeepSeek（Key 不出电脑）
 async function llmCheckViaServer(enList){
-  const r=await fetch(API_HOST+'/lookup',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+getKey()},
-    body:JSON.stringify({words:enList})
-  });
+  const headers={'Content-Type':'application/json'};
+  const k=getKey();
+  if(k) headers['Authorization']='Bearer '+k;   // 没填 Key 时用电脑上保存的那个
+  const r=await fetch('./lookup',{method:'POST',headers,body:JSON.stringify({words:enList})});
   const j=await r.json().catch(()=>({}));
   if(!r.ok){
     const err=new Error(j.message||('服务返回 '+r.status)); err.code=j.error||('http'+r.status); throw err;
@@ -532,7 +566,7 @@ async function llmCheckDirect(enList){
   if(!data||!Array.isArray(data.results)) throw new Error('DeepSeek 返回结构异常');
   return alignResults(enList,data.results);
 }
-async function llmCheck(enList){ return IS_LOCAL?llmCheckViaServer(enList):llmCheckDirect(enList); }
+async function llmCheck(enList){ return serverAPI?llmCheckViaServer(enList):llmCheckDirect(enList); }
 // 回退：dictionaryapi + MyMemory（逐词）
 async function dictOne(en){
   try{
@@ -556,14 +590,16 @@ async function dictCheck(enList){
   await Promise.all(Array.from({length:Math.min(C,enList.length)},()=>runner()));
   return results;
 }
+// 有可用的 Key：本机填的，或电脑上共享的
+function hasLlmKey(){ return !!getKey() || !!(lanInfo && lanInfo.hasKey); }
 // 统一入口：有 key 走大模型，否则回退词典。返回与 enList 对齐的数组
 async function checkWords(enList){
-  if(!getKey()) return await dictCheck(enList);
+  if(!hasLlmKey()) return await dictCheck(enList);
   const modeEl=document.getElementById('modelMode');
   try{ return await llmCheck(enList); }
   catch(e){
-    // 静态托管时若直连失败（断网/跨域），临时回退词典，保证还能录入
-    if(!IS_LOCAL && e.code==='network'){
+    // 直连模式若失败（断网/跨域），临时回退词典，保证还能录入
+    if(!serverAPI && e.code==='network'){
       modeEl.textContent='（直连 DeepSeek 失败，已临时回退词典）';
       return await dictCheck(enList);
     }
@@ -647,24 +683,13 @@ async function doBulk(){
   const modeEl=document.getElementById('modelMode');
   let fails=[]; let gainedWords=0;
   try{
-    if(getKey()){
-      const res=await checkWords(jobs.map(j=>j.en)); // 一次调用
-      for(let i=0;i<jobs.length;i++){
-        const j=jobs[i], r=res[i];
-        if(!r||!r.valid){ fails.push({en:j.en,why: r&&r.reason==='network'?'断网': r&&r.reason==='miss'?'漏词':'查不到'}); continue; }
-        const z=j.manual?j.zh:r.zh;
-        if(!z){ fails.push({en:j.en,why:'未译出中文'}); continue; }
-        const a=add(j.en,z,r.pos); if(a.added) gainedWords++;
-      }
-    }else{
-      const res=await checkWords(jobs.map(j=>j.en)); // 词典回退并发
-      for(let i=0;i<jobs.length;i++){
-        const j=jobs[i], r=res[i];
-        if(!r||!r.valid){ fails.push({en:j.en,why:r&&r.reason==='network'?'断网':'查不到'}); continue; }
-        const z=j.manual?j.zh:r.zh;
-        if(!z){ fails.push({en:j.en,why:'未译出中文'}); continue; }
-        const a=add(j.en,z,r.pos); if(a.added) gainedWords++;
-      }
+    const res=await checkWords(jobs.map(j=>j.en)); // 有 Key 一次调用；没 Key 则并发查词典
+    for(let i=0;i<jobs.length;i++){
+      const j=jobs[i], r=res[i];
+      if(!r||!r.valid){ fails.push({en:j.en,why: r&&r.reason==='network'?'断网': r&&r.reason==='miss'?'漏词':'查不到'}); continue; }
+      const z=j.manual?j.zh:r.zh;
+      if(!z){ fails.push({en:j.en,why:'未译出中文'}); continue; }
+      const a=add(j.en,z,r.pos); if(a.added) gainedWords++;
     }
   }catch(e){
     if(e.code==='quota'){ st.innerHTML=`<div class="b">⚠️ DeepSeek 额度不足或过频：${esc(e.message)}</div>`; st.className='status warn'; }
@@ -711,16 +736,17 @@ function esc(s){ return (s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'
 /* ================= 设置 / 模式 ================= */
 function modeDot(on){ const d=document.getElementById('modelDot'); d.className='statusdot '+(on?'on':'off'); }
 function refreshMode(){
-  const k=getKey();
   const lbl=document.getElementById('modelLbl');
-  if(k){ lbl.textContent='已配置 API Key（DeepSeek）'; modeDot(true); }
+  const shared=!!(lanInfo && lanInfo.hasKey);
+  if(getKey()){ lbl.textContent='已配置 API Key（DeepSeek）'; modeDot(true); }
+  else if(shared){ lbl.textContent='使用电脑上的 API Key（局域网共享）'; modeDot(true); }
   else { lbl.textContent='未配置 Key · 词典模式'; modeDot(false); }
   document.getElementById('modelMode').textContent='';
 }
 function setKeyStatus(kind,html){ const el=document.getElementById('keyStatus'); el.className='status '+kind;
   el.innerHTML=`<div class="b">${html}</div>`; }
 async function testKey(){
-  const k=getKey(); if(!k){ setKeyStatus('bad','❌ 先填入并保存 API Key'); return; }
+  const k=getKey(); if(!k && !(lanInfo&&lanInfo.hasKey)){ setKeyStatus('bad','❌ 先填入并保存 API Key'); return; }
   const btn=document.getElementById('testKeyBtn'); btn.disabled=true; btn.innerHTML='<span class="spin dark"></span> 测试中…';
   try{ const [r]=await llmCheck(['apple']);
     if(r&&r.valid) setKeyStatus('ok',`✅ Key 有效。示例校验成功：apple · <b>${esc(r.pos||'?')}</b> · ${esc(r.zh||'?')}`);
@@ -730,19 +756,166 @@ async function testKey(){
 }
 async function checkServer(){
   const el=document.getElementById('serverState'), title=document.getElementById('serverStateTitle');
-  if(!IS_LOCAL){
+  if(!serverAPI){
     if(title) title.textContent='运行模式';
-    el.innerHTML='● <b style="color:var(--good)">静态托管模式</b>：页面由静态站点提供，浏览器<b>直连 DeepSeek</b>，不需要电脑上的 node 服务。词库与积分只存在本机浏览器。';
+    el.innerHTML='● <b style="color:var(--good)">静态托管模式</b>：页面由静态站点提供，浏览器<b>直连 DeepSeek</b>，不需要电脑上的 node 服务。词库与积分只存在本机浏览器（与电脑版不互通）。';
     return;
   }
-  if(title) title.textContent='本地服务状态';
-  const alive=await serverAlive();
-  el.innerHTML=alive
-    ? '● 本机服务 <b style="color:var(--good)">运行中</b>（'+esc(API_HOST)+'）。DeepSeek 模式可用。'
-    : '○ 本机服务 <b style="color:var(--bad)">未运行</b>。要启用大模型请运行 <code>node server.js</code> 后刷新本页，或改用手机版网址（静态托管，自动直连 DeepSeek）。';
+  if(IS_LOOPBACK){
+    if(title) title.textContent='本机 / 局域网状态';
+    el.innerHTML='● 电脑上的服务 <b style="color:var(--good)">运行中</b>（'+esc(location.origin)+'）。<br>'+
+      (syncReady
+        ? '局域网共享已开启：手机连同一个 Wi-Fi，用上方的二维码直接打开，数据和电脑实时同步。'
+        : '局域网共享未就绪（共享数据连接失败，刷新页面重试）。');
+  }else{
+    if(title) title.textContent='连接状态';
+    el.innerHTML='● 已通过<b style="color:var(--good)">电脑的局域网共享</b>访问（'+esc(location.host)+'）。词库与积分存在电脑上，和电脑实时同步。';
+  }
 }
 /* 暴露给内联 onclick */
-window.switchView=switchView; window.manualSingleAdd=manualSingleAdd;
+window.switchView=switchView; window.manualSingleAdd=manualSingleAdd; window.openLanPanel=openLanPanel;
+
+/* ================= 局域网共享：二维码 + 实时同步 ================= */
+function openLanPanel(){
+  switchView('settings');
+  const p=document.getElementById('lanPanel');
+  if(p) p.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function updateSyncBadge(){
+  const btn=document.getElementById('lanScanBtn');
+  if(btn) btn.classList.toggle('hide', !(IS_LOOPBACK && syncReady));
+  const el=document.getElementById('lanSync');
+  if(el) el.textContent = syncReady
+    ? ('● 已连接电脑的共享数据，改动实时同步（第 '+syncRev+' 版）')
+    : '○ 未连接共享数据';
+}
+function renderLanPanel(){
+  const panel=document.getElementById('lanPanel'); if(!panel) return;
+  if(!serverAPI || !syncReady){ panel.classList.add('hide'); return; }
+  panel.classList.remove('hide');
+  const box=document.getElementById('qrBox');
+  const primary=(lanInfo&&lanInfo.primary)||'';
+  const port=(lanInfo&&lanInfo.port)||location.port||8111;
+  if(IS_LAN_CLIENT){
+    box.classList.add('hide');
+    document.getElementById('lanUrl').textContent='已在手机上连接：'+location.origin;
+    document.getElementById('lanNote').textContent='本页数据和电脑实时同步：在这台手机上改的，电脑上刷新就能看到。';
+    document.getElementById('lanAlts').textContent='';
+  }else if(primary){
+    box.classList.remove('hide');
+    const url='http://'+primary+':'+port+'/';
+    document.getElementById('lanUrl').textContent=url;
+    document.getElementById('lanNote').textContent='手机和电脑连同一个 Wi-Fi，用手机相机扫码（或直接用这个网址）即可，不用装任何东西。';
+    const alts=((lanInfo&&lanInfo.urls)||[]).filter(u=>u!==url);
+    document.getElementById('lanAlts').innerHTML=alts.length
+      ? ('备用地址：'+alts.map(u=>'<a href="'+esc(u)+'" target="_blank" rel="noopener">'+esc(u)+'</a>').join('　'))
+      : '';
+    if(window.QRCode && box.dataset.url!==url){
+      box.dataset.url=url;
+      box.innerHTML='';
+      new QRCode(box,{text:url,width:178,height:178,correctLevel:QRCode.CorrectLevel.M});
+    }
+  }else{
+    box.classList.add('hide');
+    document.getElementById('lanUrl').textContent='未检测到局域网 IP';
+    document.getElementById('lanNote').textContent='请确认电脑已连 Wi-Fi 或网线，然后重启 node server.js。';
+    document.getElementById('lanAlts').textContent='';
+  }
+  updateSyncBadge();
+}
+async function refreshLanInfo(){
+  if(!serverAPI) return;
+  try{ lanInfo=await fetch('./info',{cache:'no-store'}).then(r=>r.json()); }catch(e){}
+  renderLanPanel();
+  refreshMode();
+}
+function normalizePointsFromServer(p){
+  return {
+    total:Math.max(0,round1(Number(p&&p.total)||0)),
+    fromWords:Math.max(0,round1(Number(p&&p.fromWords)||0)),
+    fromCorrect:Math.max(0,Math.floor(Number(p&&p.fromCorrect)||0)),
+    allWrong:Math.max(0,Math.floor(Number(p&&p.allWrong)||0)),
+    penalty:Math.max(0,round1(Number(p&&p.penalty)||0))
+  };
+}
+function saveLocalOnly(){
+  try{
+    localStorage.setItem(LS_KEY, JSON.stringify(words));
+    localStorage.setItem(LS_KEY_POINTS, JSON.stringify(points));
+  }catch(e){}
+}
+function applyRemote(st){
+  if(!st || !Array.isArray(st.words)) return;
+  syncApplying=true;
+  words=st.words;
+  if(st.points) points=normalizePointsFromServer(st.points);
+  if(typeof st.rev==='number') syncRev=st.rev;
+  saveLocalOnly();
+  syncApplying=false;
+  renderList(); updatePoolHint(); renderPoints(); updateSyncBadge();
+}
+function scheduleSync(){
+  if(!syncReady || syncApplying) return;
+  clearTimeout(syncTimer);
+  syncTimer=setTimeout(pushState, 300);
+}
+async function pushState(){
+  if(!syncReady || syncPushing) return;
+  syncPushing=true;
+  try{
+    const r=await fetch('./state',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({baseRev:syncRev, words, points, updatedAt:Date.now()})});
+    if(r.status===409){
+      const st=await r.json();
+      applyRemote(st);
+      toast('已同步另一台设备的修改');
+    }else if(r.ok){
+      const j=await r.json();
+      syncRev=j.rev;
+      updateSyncBadge();
+    }
+  }catch(e){}
+  finally{ syncPushing=false; }
+}
+async function pollState(){
+  if(!syncReady || document.hidden || syncPushing) return;
+  try{
+    const r=await fetch('./state?since='+syncRev,{cache:'no-store'});
+    if(!r.ok) return;
+    const st=await r.json();
+    if(st.rev && st.rev!==syncRev && Array.isArray(st.words)) applyRemote(st);
+  }catch(e){}
+}
+async function initSync(){
+  if(!IS_SERVER) return;
+  try{
+    const info=await fetch('./info',{cache:'no-store'});
+    if(!info.ok) throw new Error('no info');
+    lanInfo=await info.json();
+    const r=await fetch('./state',{cache:'no-store'});
+    if(!r.ok) throw new Error('no state');
+    const st=await r.json();
+    syncReady=true;
+    if(!st.rev && !(st.words && st.words.length)){
+      // 电脑上还没有共享数据：只有本机确实有数据时才迁移过去（避免空浏览器把共享数据清空）
+      syncRev=0;
+      if(words.length || points.total || points.fromWords || points.fromCorrect || points.allWrong) pushState();
+    }else{
+      applyRemote(st);           // 以电脑上的共享数据为准
+    }
+    if(!syncPoll) syncPoll=setInterval(pollState, 4000);
+    document.addEventListener('visibilitychange',()=>{ if(!document.hidden) pollState(); });
+    renderLanPanel();
+    refreshMode();
+    checkServer();
+  }catch(e){
+    serverAPI=false;
+    syncReady=false;
+    renderLanPanel();
+    refreshMode();
+    checkServer();
+  }
+}
 
 /* ================= 练习 ================= */
 let quiz=[], quizIdx=0, score=0, wrongSet=new Set(), countN=20;
@@ -847,7 +1020,7 @@ function switchView(v){
   ['words','practice','settings'].forEach(x=>document.getElementById('view-'+x).classList.toggle('hide',x!==v));
   if(v==='words') renderList();
   if(v==='practice'){ updatePoolHint(); renderPoints(); }
-  if(v==='settings') checkServer();
+  if(v==='settings'){ refreshLanInfo(); checkServer(); }
 }
 document.querySelectorAll('nav.tabs button').forEach(b=>b.addEventListener('click',()=>switchView(b.dataset.view)));
 
@@ -877,10 +1050,21 @@ document.getElementById('backSetupBtn').addEventListener('click',()=>{ document.
 document.getElementById('wrongWords').addEventListener('click',e=>{ const id=e.target.dataset.re; if(!id)return;
   const w=words.find(x=>x.id===id); if(w) startQuiz([{...w}],1); });
 
-document.getElementById('saveKeyBtn').addEventListener('click',()=>{
+document.getElementById('saveKeyBtn').addEventListener('click',async()=>{
   const v=document.getElementById('keyInput').value.trim();
-  localStorage.setItem(LS_KEY_API,v); refreshMode(); checkServer();
-  setKeyStatus(v?'ok':'warn', v?'✅ 已保存 API Key。可点「测试连接」验证。':'已清空 Key（回到词典模式）。');
+  localStorage.setItem(LS_KEY_API,v);
+  if(serverAPI){
+    try{
+      const r=await fetch('./key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:v})});
+      const j=await r.json().catch(()=>({}));
+      if(r.ok){ if(lanInfo) lanInfo.hasKey=!!j.hasKey; }
+      else if(j && j.message) toast('保存到电脑失败：'+j.message);
+    }catch(e){}
+  }
+  refreshMode(); checkServer(); updateSyncBadge();
+  setKeyStatus(v?'ok':'warn', v
+    ? (serverAPI?'✅ 已保存 API Key，手机端扫码后会自动复用这个 Key。':'✅ 已保存 API Key。可点「测试连接」验证。')
+    : '已清空 Key（回到词典模式）。');
   document.getElementById('keyInput').value=''; });
 document.getElementById('testKeyBtn').addEventListener('click',testKey);
 
@@ -939,20 +1123,23 @@ if(!isStandalone && (/iphone|ipod/i.test(navigator.userAgent||'') ||
   iosInstallHint=true;
   showInstallBar();
 }
-if('serviceWorker' in navigator && (location.protocol==='https:'||IS_LOCAL)){
+if('serviceWorker' in navigator && (location.protocol==='https:'||IS_LOOPBACK)){
   window.addEventListener('load',()=>{ navigator.serviceWorker.register('./sw.js').catch(()=>{}); });
 }
 
 /* 页脚文案随运行模式变化 */
 function renderFoot(){
   const el=document.getElementById('footnote'); if(!el) return;
-  if(IS_LOCAL){
-    el.innerHTML=`数据存本机浏览器 localStorage。首次使用请先 <button class="btn link" onclick="switchView('settings')">配置 API Key</button>，然后运行<br>
-    <code>node server.js</code>（或双击 <code>start.bat</code>），再打开 <a href="${esc(location.origin)}" target="_blank">${esc(location.host)}</a><br>
+  if(IS_LOOPBACK){
+    el.innerHTML=`数据存在电脑上（<code>data.json</code>），手机扫码后共用同一份，改动实时同步。<br>
+    手机连接：<button class="btn link" onclick="openLanPanel()">设置 →「手机扫码连接」</button>　·　首次使用请先 <button class="btn link" onclick="switchView('settings')">配置 API Key</button><br>
     未配 Key 时自动回退到免费词典接口（dictionaryapi.dev + MyMemory）。`;
+  }else if(IS_LAN_CLIENT){
+    el.innerHTML=`已通过电脑的局域网共享打开：词库和积分都存在电脑里，和电脑实时同步。<br>
+    电脑关机或离开这个 Wi-Fi 后就打不开了；想随时随地用，可以用静态托管版（GitHub Pages）。`;
   }else{
     el.innerHTML=`静态托管版：手机/电脑浏览器直接打开就能用，不依赖电脑上的 node 服务。<br>
-    词库与积分只存本机浏览器；首次使用到 <button class="btn link" onclick="switchView('settings')">设置</button> 填 DeepSeek API Key，未填则用免费词典接口。<br>
+    词库与积分只存本机浏览器（和电脑版不互通）；首次使用到 <button class="btn link" onclick="switchView('settings')">设置</button> 填 DeepSeek API Key，未填则用免费词典接口。<br>
     装到手机桌面：浏览器菜单 →「添加到主屏幕 / 安装应用」。`;
   }
 }
@@ -965,6 +1152,7 @@ function applyPlatformTexts(){
 }
 
 updatePoolHint(); updatePreview(); renderList(); refreshMode(); renderPoints(); renderFoot(); applyPlatformTexts();
+initSync();
 </script>
 </body>
 </html>

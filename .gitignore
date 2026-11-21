@@ -23,3 +23,7 @@ desktop.ini
 *.tmp
 *.log
 *.pid
+
+# 共享数据（词库 + 积分 + API Key，只存在你自己的电脑上，不提交）
+data.json
+data.json.tmp
