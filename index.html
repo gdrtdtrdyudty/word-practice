@@ -2,7 +2,17 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#2f6d4f" />
+<meta name="description" content="背单词练习：录入单词自动补词性和中文，随机抽练并累计积分。手机打开网页即可添加到主屏幕当 App 用。" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="背单词" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="format-detection" content="telephone=no" />
+<link rel="manifest" href="./manifest.json" />
+<link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png" />
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
 <title>背单词练习</title>
 <style>
   :root{
@@ -13,6 +23,7 @@
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   body{
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
     background:
@@ -165,6 +176,54 @@
     padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:50;max-width:80vw}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .tag.big{font-size:12px;padding:3px 9px}
+
+  /* ===== 手机 / 安装提示 ===== */
+  .install-bar{position:relative;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    background:linear-gradient(135deg,#eaf4ee,#f8fcfa);
+    border:1px solid var(--accent);color:#204c37;border-radius:12px;padding:10px 44px 10px 12px;font-size:13px;
+    margin:0 0 14px;line-height:1.6}
+  .install-bar b{color:var(--brand)}
+  .install-bar .btn{margin-left:auto}
+  .install-bar .close{position:absolute;right:8px;top:8px;background:none;border:0;color:var(--muted);
+    font-size:15px;cursor:pointer;padding:4px 6px;line-height:1}
+  @media (max-width:600px){
+    .app{padding:14px 12px calc(40px + env(safe-area-inset-bottom))}
+    header.app-head{gap:10px;margin-bottom:4px}
+    .logo{width:34px;height:34px;border-radius:10px;font-size:16px}
+    .app-head h1{font-size:17px}
+    .app-head .sub{font-size:11.5px;line-height:1.5}
+    nav.tabs{max-width:none;margin:12px 0}
+    .panel{padding:15px 13px}
+    .panel h2{font-size:16px}
+    .panel .hint{font-size:12px}
+    .row{gap:8px}
+    .row .grow{flex:1 1 100%;min-width:0}
+    .row > .btn{flex:1 1 auto;justify-content:center}
+    input[type=text],input[type=password],textarea{font-size:16px}
+    .btn{padding:11px 14px}
+    .btn,nav.tabs button,.icon-btn,.chip{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+    .zh-card{padding:18px 12px;margin-bottom:14px}
+    .zh-card .zh{font-size:26px}
+    .zh-card .lab{font-size:11px;letter-spacing:1px}
+    .answer-box input{font-size:22px;letter-spacing:0}
+    .answer-box .tip{font-size:11.5px}
+    .feedback{margin-top:12px;min-height:0}
+    .feedback .fb{font-size:14px}
+    .result-actions{margin-top:14px}
+    .result-actions .btn{min-width:0;flex:1 1 40%}
+    .result-card{padding:18px 14px}
+    .ring{width:84px;height:84px}.ring div{width:66px;height:66px}.ring div span{font-size:26px}
+    .word-row{gap:8px;align-items:flex-start;padding:10px 2px}
+    .word-en{font-size:14px}
+    .word-zh{font-size:13px;min-width:0;overflow-wrap:anywhere}
+    .word-meta{font-size:10.5px}
+    .icon-btn{font-size:16px;padding:5px}
+    .pc-num{font-size:27px}
+    .pc-chip{font-size:11.5px;padding:4px 8px}
+    .pc-rule{font-size:11px}
+    .footnote{font-size:11.5px;margin-top:20px}
+    .toast{bottom:calc(16px + env(safe-area-inset-bottom));font-size:12.5px;max-width:88vw}
+  }
 </style>
 </head>
 <body>
@@ -182,6 +241,12 @@
     <button data-view="practice">练习</button>
     <button data-view="settings">设置</button>
   </nav>
+
+  <div class="install-bar hide" id="installBar">
+    <span id="installText">装到手机桌面，像 App 一样用</span>
+    <button class="btn primary small hide" id="installBtn">安装</button>
+    <button class="close" id="installClose" title="关闭">✕</button>
+  </div>
 
   <!-- ============ 词库视图 ============ -->
   <section id="view-words">
@@ -256,12 +321,12 @@
         </div>
         <div class="answer-box">
           <input type="text" id="ansInput" autocomplete="off" autocapitalize="off" spellcheck="false"
-                 placeholder="输入英文后回车" />
+                 enterkeyhint="go" placeholder="输入英文后回车" />
           <div class="tip">回车判定　·　连按两次 <kbd>Enter</kbd> 直接下一题<br>判定后<b>仍可修改答案</b>，改完再回车重新判定</div>
         </div>
         <div class="feedback"><div class="fb" id="fbBox"></div></div>
-        <div class="result-actions hide" id="duringActions">
-          <button class="btn primary" id="nextBtn">下一个</button>
+        <div class="result-actions" id="duringActions">
+          <button class="btn primary" id="nextBtn">判定</button>
         </div>
       </div>
     </div>
@@ -304,7 +369,7 @@
   <section id="view-settings" class="hide">
     <div class="panel">
       <h2>大模型校验设置 <span class="tag">DeepSeek</span></h2>
-      <p class="hint">用大模型来校验单词、识别词性并翻译中文，比词典接口更准也更省（批量一次调用）。需要你在 DeepSeek 官网申请 API Key：<a href="https://platform.deepseek.com" target="_blank" rel="noopener">platform.deepseek.com</a> → API Keys → 创建。Key 存在本机浏览器 localStorage，仅经本机服务转发给 DeepSeek，不上传其它地方。</p>
+      <p class="hint">用大模型来校验单词、识别词性并翻译中文，比词典接口更准也更省（批量一次调用）。需要你在 DeepSeek 官网申请 API Key：<a href="https://platform.deepseek.com" target="_blank" rel="noopener">platform.deepseek.com</a> → API Keys → 创建。Key 只存在本机浏览器 localStorage，请求由本机服务或浏览器直接发往 DeepSeek，不经过其它服务器。</p>
 
       <div class="row">
         <input type="password" id="keyInput" placeholder="sk-… 粘贴你的 DeepSeek API Key" autocomplete="off" style="flex:2;min-width:200px" />
@@ -314,13 +379,13 @@
       <div class="status" id="keyStatus"></div>
 
       <div style="border-top:1px dashed var(--line);margin-top:16px;padding-top:14px">
-        <h2 style="font-size:15px;margin:0 0 8px">本地服务状态</h2>
+        <h2 style="font-size:15px;margin:0 0 8px" id="serverStateTitle">本地服务状态</h2>
         <div class="kv" id="serverState">正在检测本机服务…</div>
       </div>
     </div>
   </section>
 
-  <div class="footnote">
+  <div class="footnote" id="footnote">
     数据存本机浏览器 localStorage。首次使用请先 <button class="btn link" onclick="switchView('settings')">配置 API Key</button>，然后运行<br>
     <code>node server.js</code>（或双击 <code>start.bat</code>），再打开 <a href="http://127.0.0.1:8111" target="_blank">http://127.0.0.1:8111</a><br>
     未配 Key 时自动回退到免费词典接口（dictionaryapi.dev + MyMemory）。
@@ -331,6 +396,9 @@
 <script>
 /* ================= 数据层 ================= */
 const LS_KEY='word-practice-words', LS_KEY_API='wp-deepseek-key';
+const HOSTNAME=location.hostname;
+const IS_LOCAL=HOSTNAME==='127.0.0.1'||HOSTNAME==='localhost'||HOSTNAME==='[::1]'||HOSTNAME==='::1';
+const IS_TOUCH=!!(window.matchMedia&&matchMedia('(hover:none), (pointer:coarse)').matches);
 const API_HOST='http://127.0.0.1:'+(location.port||8111);
 let words=load();
 function load(){ try{ return JSON.parse(localStorage.getItem(LS_KEY))||[]; }catch(e){ return []; } }
@@ -391,16 +459,38 @@ function renderPoints(delta){
   if(delta) pulsePoints(delta);
 }
 
-/* ================= 联网：本地服务(DeepSeek) + 词典回退 ================= */
+/* ================= 联网：DeepSeek（本机转发 / 浏览器直连）+ 词典回退 ================= */
 const POS_MAP={noun:'n.',verb:'v.',adjective:'adj.',adverb:'adv.',pronoun:'pron.',preposition:'prep.',
   conjunction:'conj.',interjection:'interj.',determiner:'det.',numeral:'num.',particle:'part.'};
 const shortPos=p=>POS_MAP[p]||(p||'').slice(0,3)+'.';
 
+const DS_ENDPOINT='https://api.deepseek.com/chat/completions';
+/* 与 server.js 中的系统提示保持一致 */
+const DS_SYS='你是中英文词汇校验助手。用户会给出一批英文单词(可能是完整单词或带词形变化如复数/时态)。'+
+  '对每个词判断：它是不是真实、可用的英文单词。'+
+  '对真实单词：给出常用中文释义和词性缩写(如 n./v./adj./adv./prep./pron./conj. 等，多个词性用 / 连接，如 n./v.)。'+
+  '对不是真实单词的(拼写错误、乱码、明显非英文)：valid=false。'+
+  '严格只输出一个 JSON 对象，禁止任何额外文字、禁止 markdown 代码块。格式：'+
+  '{"results":[{"word":"用户输入的原词","valid":true,"pos":"n.","zh":"苹果"}]}。'+
+  'results 长度必须与输入单词一一对应、顺序一致。';
+
+/* 把模型结果按请求词对齐（模型偶有漏词/大小写变动） */
+function alignResults(enList,raw){
+  const map=new Map();
+  (raw||[]).forEach(r=>{ const k=String(r.word||'').trim().toLowerCase(); if(k) map.set(k,r); });
+  return enList.map(w=>{
+    const hit=map.get(w.toLowerCase());
+    if(!hit) return {word:w,valid:false,pos:'',zh:'',reason:'miss'};
+    return {word:w,valid:!!hit.valid,pos:String(hit.pos||'').trim(),zh:String(hit.zh||'').trim(),
+      reason:hit.valid?'ok':'invalid'};
+  });
+}
 async function serverAlive(){
+  if(!IS_LOCAL) return false;
   try{ const r=await fetch(API_HOST+'/index.html',{method:'HEAD'}); return true; }catch(e){ return false; }
 }
-// 主要路径：一次请求发给本地服务 -> DeepSeek
-async function llmCheck(enList){
+// 本机模式：一次请求发给本地服务 -> DeepSeek（Key 不经过跨域）
+async function llmCheckViaServer(enList){
   const r=await fetch(API_HOST+'/lookup',{
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+getKey()},
@@ -412,6 +502,37 @@ async function llmCheck(enList){
   }
   return j.results||[];
 }
+// 静态托管模式（手机/GitHub Pages）：浏览器直连 DeepSeek（其 API 已支持跨域）
+async function llmCheckDirect(enList){
+  const key=getKey();
+  if(!key){ const e=new Error('尚未设置 API Key'); e.code='no-key'; throw e; }
+  let r;
+  try{
+    r=await fetch(DS_ENDPOINT,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+      body:JSON.stringify({model:'deepseek-chat',temperature:0,response_format:{type:'json_object'},
+        messages:[{role:'system',content:DS_SYS},{role:'user',content:JSON.stringify({words:enList})}]})
+    });
+  }catch(err){
+    const e=new Error('无法连接 DeepSeek（网络异常或跨域被拦截）'); e.code='network'; throw e;
+  }
+  const txt=await r.text().catch(()=>'');
+  let j=null; try{ j=JSON.parse(txt); }catch(e){}
+  if(!r.ok){
+    const e=new Error((j&&j.error&&j.error.message)||('DeepSeek HTTP '+r.status));
+    e.code=r.status===401?'auth':((r.status===402||r.status===429)?'quota':'http'+r.status);
+    throw e;
+  }
+  const content=j&&j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content;
+  if(!content) throw new Error('DeepSeek 返回了空内容');
+  let data=null;
+  try{ data=JSON.parse(content); }
+  catch(e){ const m=content.match(/\{[\s\S]*\}/); if(m){ try{ data=JSON.parse(m[0]); }catch(e2){} } }
+  if(!data||!Array.isArray(data.results)) throw new Error('DeepSeek 返回结构异常');
+  return alignResults(enList,data.results);
+}
+async function llmCheck(enList){ return IS_LOCAL?llmCheckViaServer(enList):llmCheckDirect(enList); }
 // 回退：dictionaryapi + MyMemory（逐词）
 async function dictOne(en){
   try{
@@ -437,12 +558,18 @@ async function dictCheck(enList){
 }
 // 统一入口：有 key 走大模型，否则回退词典。返回与 enList 对齐的数组
 async function checkWords(enList){
-  if(getKey()){
-    const modeEl=document.getElementById('modelMode');
-    try{ return await llmCheck(enList); }
-    catch(e){ modeEl.textContent='（DeepSeek 调用失败，回退词典）'; throw e; }
+  if(!getKey()) return await dictCheck(enList);
+  const modeEl=document.getElementById('modelMode');
+  try{ return await llmCheck(enList); }
+  catch(e){
+    // 静态托管时若直连失败（断网/跨域），临时回退词典，保证还能录入
+    if(!IS_LOCAL && e.code==='network'){
+      modeEl.textContent='（直连 DeepSeek 失败，已临时回退词典）';
+      return await dictCheck(enList);
+    }
+    modeEl.textContent='（DeepSeek 调用失败）';
+    throw e;
   }
-  return await dictCheck(enList);
 }
 
 /* ================= 词库操作 ================= */
@@ -602,11 +729,17 @@ async function testKey(){
   btn.disabled=false; btn.textContent='测试连接';
 }
 async function checkServer(){
-  const el=document.getElementById('serverState');
+  const el=document.getElementById('serverState'), title=document.getElementById('serverStateTitle');
+  if(!IS_LOCAL){
+    if(title) title.textContent='运行模式';
+    el.innerHTML='● <b style="color:var(--good)">静态托管模式</b>：页面由静态站点提供，浏览器<b>直连 DeepSeek</b>，不需要电脑上的 node 服务。词库与积分只存在本机浏览器。';
+    return;
+  }
+  if(title) title.textContent='本地服务状态';
   const alive=await serverAlive();
   el.innerHTML=alive
-    ? '● 本机服务 <b style="color:var(--good)">运行中</b>（http://127.0.0.1:8111）。DeepSeek 模式可用。'
-    : '○ 本机服务 <b style="color:var(--bad)">未运行</b>。DeepSeek 模式下会回退到词典。要启用大模型，请运行 <code>node server.js</code> 后刷新本页。';
+    ? '● 本机服务 <b style="color:var(--good)">运行中</b>（'+esc(API_HOST)+'）。DeepSeek 模式可用。'
+    : '○ 本机服务 <b style="color:var(--bad)">未运行</b>。要启用大模型请运行 <code>node server.js</code> 后刷新本页，或改用手机版网址（静态托管，自动直连 DeepSeek）。';
 }
 /* 暴露给内联 onclick */
 window.switchView=switchView; window.manualSingleAdd=manualSingleAdd;
@@ -636,8 +769,8 @@ function showQuestion(){
   const inp=document.getElementById('ansInput'); inp.value=''; inp.disabled=false;
   graded=false; lastGiven=''; lastOk=false;
   const fb=document.getElementById('fbBox'); fb.className='fb'; fb.textContent='';
-  document.getElementById('duringActions').classList.add('hide');
-  inp.focus();
+  syncActionLabel();
+  if(!IS_TOUCH) inp.focus();   // 手机上不自动弹键盘，先看清中文
 }
 /* 撤销上一题的判定，让“改答案后重新判定”只按最后一次算分，不重复累加统计 */
 function undoVerdict(q){
@@ -666,8 +799,15 @@ function submitAnswer(){
   fb.innerHTML=ok?`✅ 正确！<div class="correct-en">${esc(q.en)}</div>${note}`
     :`❌ 不对，正确是<div class="correct-en">${esc(q.en)}</div><div style="font-weight:400;font-size:13px;opacity:.9;margin-top:2px">你写的是：${esc(given)}</div>${note}`;
   document.getElementById('barFill').style.width=((quizIdx+1)/quiz.length*100)+'%';
-  document.getElementById('duringActions').classList.remove('hide');
-  inp.focus(); // 不锁输入框：判定后仍可修改，也能直接连按回车
+  syncActionLabel();
+  if(IS_TOUCH) inp.blur(); else inp.focus(); // 手机上收起键盘先看判定结果；桌面上保持焦点可继续改
+}
+/* 按钮文案与回车规则保持一致：未判定「判定」；改了答案「重新判定」；否则「下一题」 */
+function syncActionLabel(){
+  const given=document.getElementById('ansInput').value.trim();
+  const btn=document.getElementById('nextBtn');
+  if(!graded){ btn.textContent='判定'; return; }
+  btn.textContent=(given && given!==lastGiven)?'重新判定':'下一题';
 }
 /* 回车规则：未判定 → 判题；已判定且答案没改（或已清空）→ 下一题；改了答案 → 重新判题 */
 function onAnswerEnter(){
@@ -727,7 +867,8 @@ document.getElementById('ansInput').addEventListener('keydown',e=>{
   if(e.repeat) return;                                          // 长按回车不连跳题
   e.preventDefault();
   onAnswerEnter(); });
-document.getElementById('nextBtn').addEventListener('click',nextQuestion);
+document.getElementById('nextBtn').addEventListener('click',()=>{ onAnswerEnter(); });
+document.getElementById('ansInput').addEventListener('input',syncActionLabel);
 document.getElementById('againAllBtn').addEventListener('click',()=>startQuiz(words,Math.min(countN,words.length)));
 document.getElementById('onlyWrongBtn').addEventListener('click',()=>{
   const wp=words.filter(w=>wrongSet.has(w.id)); if(!wp.length){ toast('没有答错的单词'); return; } startQuiz(wp,wp.length); });
@@ -767,7 +908,58 @@ let toastTimer;
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
   clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),2600); }
 
-updatePoolHint(); updatePreview(); renderList(); refreshMode(); renderPoints();
+/* ================= 装到手机桌面 / 离线缓存 ================= */
+const isStandalone=!!(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
+let deferredInstall=null;
+function installDismissed(){ try{ return localStorage.getItem('wp-install-dismissed')==='1'; }catch(e){ return false; } }
+function showInstallBar(){ if(isStandalone||installDismissed()) return;
+  const bar=document.getElementById('installBar'); if(bar) bar.classList.remove('hide'); }
+function hideInstallBar(){ const bar=document.getElementById('installBar'); if(bar) bar.classList.add('hide'); }
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault(); deferredInstall=e;
+  const b=document.getElementById('installBtn'); if(b) b.classList.remove('hide');
+  showInstallBar();
+});
+window.addEventListener('appinstalled',()=>{ deferredInstall=null; hideInstallBar(); });
+document.getElementById('installBtn').addEventListener('click',async()=>{
+  if(!deferredInstall){ toast('请用浏览器菜单里的「添加到主屏幕」'); return; }
+  try{ deferredInstall.prompt(); await deferredInstall.userChoice; }catch(e){}
+  deferredInstall=null; hideInstallBar();
+});
+document.getElementById('installClose').addEventListener('click',()=>{
+  hideInstallBar(); try{ localStorage.setItem('wp-install-dismissed','1'); }catch(e){}
+});
+if(!isStandalone && /iphone|ipad|ipod/i.test(navigator.userAgent||'') && !installDismissed()){
+  const it=document.getElementById('installText');
+  if(it) it.innerHTML='iPhone：点底部 <b>分享</b> → <b>添加到主屏幕</b>';
+  showInstallBar();
+}
+if('serviceWorker' in navigator && (location.protocol==='https:'||IS_LOCAL)){
+  window.addEventListener('load',()=>{ navigator.serviceWorker.register('./sw.js').catch(()=>{}); });
+}
+
+/* 页脚文案随运行模式变化 */
+function renderFoot(){
+  const el=document.getElementById('footnote'); if(!el) return;
+  if(IS_LOCAL){
+    el.innerHTML=`数据存本机浏览器 localStorage。首次使用请先 <button class="btn link" onclick="switchView('settings')">配置 API Key</button>，然后运行<br>
+    <code>node server.js</code>（或双击 <code>start.bat</code>），再打开 <a href="${esc(location.origin)}" target="_blank">${esc(location.host)}</a><br>
+    未配 Key 时自动回退到免费词典接口（dictionaryapi.dev + MyMemory）。`;
+  }else{
+    el.innerHTML=`静态托管版：手机/电脑浏览器直接打开就能用，不依赖电脑上的 node 服务。<br>
+    词库与积分只存本机浏览器；首次使用到 <button class="btn link" onclick="switchView('settings')">设置</button> 填 DeepSeek API Key，未填则用免费词典接口。<br>
+    装到手机桌面：浏览器菜单 →「添加到主屏幕 / 安装应用」。`;
+  }
+}
+
+/* 触屏设备的文案：回车提示换成按钮提示 */
+function applyPlatformTexts(){
+  if(!IS_TOUCH) return;
+  const tip=document.querySelector('.answer-box .tip');
+  if(tip) tip.innerHTML='点下方按钮提交　·　判定后<b>仍可修改答案</b><br>改完再点一次就会重新判定';
+}
+
+updatePoolHint(); updatePreview(); renderList(); refreshMode(); renderPoints(); renderFoot(); applyPlatformTexts();
 </script>
 </body>
 </html>

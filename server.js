@@ -45,12 +45,13 @@ const SEC_HEADERS = {
 };
 
 /* ---------- 静态文件 ---------- */
-const MIME = {'.html':'text/html; charset=utf-8','.js':'application/javascript','.css':'text/css','.json':'application/json','.png':'image/png','.ico':'image/x-icon'};
-function sendFile(res, file){
+const MIME = {'.html':'text/html; charset=utf-8','.js':'application/javascript','.css':'text/css','.json':'application/json','.png':'image/png','.ico':'image/x-icon','.webmanifest':'application/manifest+json','.svg':'image/svg+xml'};
+function sendFile(req, res, file){
+  const head = req.method === 'HEAD';
   fs.readFile(file, (err, buf)=>{
     if(err){ res.writeHead(404, Object.assign({'Content-Type':'text/plain; charset=utf-8'}, SEC_HEADERS)); res.end('Not Found'); return; }
     res.writeHead(200, Object.assign({'Content-Type': MIME[path.extname(file)]||'application/octet-stream'}, SEC_HEADERS));
-    res.end(buf);
+    res.end(head ? undefined : buf);
   });
 }
 
@@ -158,14 +159,14 @@ const server = http.createServer(async (req, res)=>{
       json(res, 200, { results: align(words, raw) });
       return;
     }
-    // 静态页
-    if(req.method === 'GET'){
+    // 静态页（页面的 HEAD 用于前端探测本机服务是否在运行）
+    if(req.method === 'GET' || req.method === 'HEAD'){
       let p = url.pathname === '/' ? '/index.html' : url.pathname;
       const file = path.normalize(path.join(ROOT, p));
       // 必须加上 path.sep：否则 ROOT 为 ...\word-practice 时，
       // 兄弟目录 ...\word-practice-evil 也会被误判为"在目录内"
       if(file !== ROOT && !file.startsWith(ROOT + path.sep)){ json(res, 403, {error:'forbidden'}); return; }
-      if(fs.existsSync(file) && fs.statSync(file).isFile()){ sendFile(res, file); return; }
+      if(fs.existsSync(file) && fs.statSync(file).isFile()){ sendFile(req, res, file); return; }
       json(res, 404, { error:'not-found' });
       return;
     }

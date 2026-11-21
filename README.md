@@ -51,6 +51,39 @@
 - **零依赖**：不用 `npm install`，只有 3 个代码文件，Node 18+ 直接跑
 - **双模式**：配了 DeepSeek Key 走大模型；没配则自动回退免费词典接口（dictionaryapi.dev + MyMemory）
 - **纯本地**：服务只监听 `127.0.0.1`，不对局域网开放，静态文件服务带路径穿越防护
+- **也是 PWA**：同一份 `index.html` 可直接静态托管，手机浏览器打开就能用，可「添加到主屏幕」并离线使用
+
+---
+
+## 手机版：打开网址就能用（免安装、免服务器）
+
+电脑版要跑 `node server.js`，手机上没 Node。所以这个页面同时是一个**静态 PWA**，已经部署在 GitHub Pages：
+
+**手机地址：<https://gdrtdtrdyudty.github.io/word-practice/>**　（电脑上可以用手机扫下面的码）
+
+<img src="./assets/qr-mobile.png" alt="手机版二维码" width="220">
+
+| 步骤 | 操作 |
+| --- | --- |
+| 1 | 手机浏览器打开上面的地址（电脑上可以用二维码扫） |
+| 2 | 当 App 用：iPhone 点「分享 → 添加到主屏幕」；Android 点浏览器菜单「安装应用 / 添加到主屏幕」 |
+| 3 | 首次到【设置】粘贴 DeepSeek API Key（只存这台手机的浏览器），不填也能用免费词典接口 |
+
+同一份代码，两种运行方式自动切换：
+
+| 打开方式 | DeepSeek 请求路径 | 说明 |
+| --- | --- | --- |
+| `http://127.0.0.1:8111`（电脑） | 浏览器 → 本机 `server.js` → DeepSeek | 保持原来的本地模式 |
+| `https://*.github.io/...`（手机/电脑） | 浏览器**直连** `api.deepseek.com` | 无需任何后端，DeepSeek API 支持跨域 |
+| 断网 | — | Service Worker 缓存页面，仍可手动录入/复习，积分照记 |
+
+数据（词库、积分、API Key）只存在**本机浏览器的 localStorage**，每台设备独立，不上传。
+
+### 重新部署 / 换地方托管
+
+1. 仓库 **Settings → Pages**，Source 选 `main` 分支根目录（已配置好，一般不用动）；
+2. 之后每次 `git push`，GitHub Pages 会自动更新，约 1 分钟生效；
+3. 想换 Vercel / Netlify / Cloudflare Pages：直接上传仓库根目录即可，**不需要构建命令**。
 
 ---
 
@@ -254,16 +287,22 @@ Content-Type: application/json
 
 ```
 word-practice/
-├── index.html    前端单页（界面 + 全部逻辑，约 37 KB）
-├── server.js     本地服务（静态托管 + /lookup 转发 DeepSeek，约 6 KB）
-├── start.bat     Windows 一键启动脚本
-├── README.md     本文件
-└── LICENSE       MIT 开源协议
+├── index.html            前端单页（界面 + 全部逻辑，同时兼容本地与静态托管）
+├── server.js             本地服务（静态托管 + /lookup 转发 DeepSeek）
+├── start.bat             Windows 一键启动脚本
+├── manifest.json         PWA 配置（名称、图标、独立窗口）
+├── sw.js                 Service Worker（离线缓存）
+├── icons/                App 图标（192/512/maskable/apple-touch）
+├── assets/               README 用图（手机版二维码）
+├── .nojekyll             让 GitHub Pages 原样发布文件
+├── README.md             本文件
+└── LICENSE               MIT 开源协议
 ```
 
 ## 工作原理
 
 ```
+本地模式（http://127.0.0.1:8111）
 浏览器 (index.html)
    │  1. 前端把待校验的单词数组 POST 到本机 /lookup
    │     Header: Authorization: Bearer <你的 DeepSeek Key>
@@ -275,9 +314,15 @@ DeepSeek API
    │  3. 返回 JSON：{ results:[{word, valid, pos, zh}, ...] }
    ▼
 本地服务按原始单词顺序对齐结果 → 返回前端
+
+静态托管模式（手机 / GitHub Pages）
+浏览器 (index.html)
+   │  1. 前端直接 POST api.deepseek.com/chat/completions（CORS 已由 DeepSeek 支持）
+   │  2. 前端自己做结果对齐（alignResults）
+   └─ 3. Service Worker 缓存页面，断网也能打开
 ```
 
-服务端**不存储**任何 Key，只用请求头里带来的那一个，用完即弃。
+服务端**不存储**任何 Key，只用请求头里带来的那一个，用完即弃；静态托管模式下 Key 只存在你自己的浏览器里。
 
 ---
 
