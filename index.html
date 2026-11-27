@@ -80,6 +80,14 @@
     padding:2px 7px;border-radius:6px;margin-right:6px;vertical-align:middle}
 
   .word-list{margin-top:14px;border-top:1px solid var(--line)}
+  .search-box{display:flex;align-items:center;gap:8px;margin-top:12px;border:1px solid var(--line);
+    border-radius:10px;padding:8px 10px;background:#fbfcfb;transition:.15s}
+  .search-box:focus-within{border-color:var(--brand-2);box-shadow:0 0 0 3px var(--brand-soft)}
+  .search-box .s-ico{font-size:14px;color:var(--muted);flex:none}
+  .search-box input{flex:1;width:auto;min-width:0;border:0;background:transparent;padding:0;font-size:14px;
+    border-radius:0;box-shadow:none;outline:none}
+  .search-box input:focus{border:0;box-shadow:none}
+  .search-box .icon-btn{padding:2px 4px;font-size:14px}
   .word-row{display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid var(--line)}
   .word-en{font-weight:700;font-size:15px}
   .word-zh{color:var(--muted);flex:1;font-size:14px}
@@ -304,6 +312,12 @@
           <button class="btn ghost" style="font-size:12.5px" id="sortBtn">按录入排序</button>
           <button class="btn ghost" style="font-size:12.5px;color:var(--bad)" id="clearBtn">清空</button>
         </div>
+      </div>
+      <div class="search-box">
+        <span class="s-ico">🔍</span>
+        <input type="text" id="searchInput" placeholder="搜索单词（英文 / 中文 / 词性，可用空格分隔多个关键词）"
+               autocomplete="off" enterkeyhint="search" />
+        <button class="icon-btn hide" id="searchClear" title="清空搜索">✕</button>
       </div>
       <div class="word-list" id="wordList"></div>
     </div>
@@ -645,7 +659,7 @@ async function doSingleAdd(){
       btn.disabled=false; btn.textContent='识别并添加'; zhBox.focus(); return; }
     const added=add(en, zh, r.pos);
     setSingle('ok',`✅ 已录入 <b>${esc(en)}</b> · <span class="tag big" style="color:#fff;background:rgba(255,255,255,.25)">${esc(r.pos)||'?'}</span> ${esc(zh)}${added.added?'　·　积分 +0.1':''}`);
-    renderPoints();
+    renderPoints(); renderList(); updatePoolHint();
     enBox.value=''; zhBox.value=''; enBox.focus();
   }catch(e){
     if(e.code==='no-key'||e.code==='auth'){ setSingle('warn','⚠️ 尚未配置或 Key 无效，请到【设置】填写 API Key。当前已回退到词典接口。 <button class="btn link" onclick="manualSingleAdd()">仍手动添加</button>'); }
@@ -713,12 +727,25 @@ async function doBulk(){
 }
 
 /* ================= 渲染：词库 ================= */
-let sortMode='time';
+let sortMode='time', searchQuery='';
+function matchesSearch(w){
+  if(!searchQuery) return true;
+  const terms=searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+  const hay=((w.en||'')+' '+(w.zh||'')+' '+(w.pos||'')).toLowerCase();
+  return terms.every(t=>hay.includes(t));
+}
 function renderList(){
   const list=document.getElementById('wordList');
-  const arr=words.slice().sort(sortMode==='abc'?(a,b)=>a.en.localeCompare(b.en):(a,b)=>b.createdAt-a.createdAt);
-  document.getElementById('totalCount').textContent=words.length+' 个';
+  const sorted=words.slice().sort(sortMode==='abc'?(a,b)=>a.en.localeCompare(b.en):(a,b)=>b.createdAt-a.createdAt);
+  const arr=sorted.filter(matchesSearch);
+  document.getElementById('totalCount').textContent = searchQuery
+    ? (arr.length+' / '+words.length+' 个')
+    : (words.length+' 个');
   if(!words.length){ list.innerHTML='<div class="empty"><span class="big">📖</span>词库还是空的<br>在上面输入你的第一个英文单词吧</div>'; return; }
+  if(!arr.length){
+    list.innerHTML=`<div class="empty"><span class="big">🔍</span>没有匹配「${esc(searchQuery)}」的单词<br>换个关键词试试，或点右上角的 ✕ 清空搜索</div>`;
+    return;
+  }
   list.innerHTML=arr.map(w=>`
     <div class="word-row">
       <span class="dot ${w.wrong>w.correct?'no':(w.correct?'ok':'')}"></span>
@@ -1029,6 +1056,17 @@ document.getElementById('singleEn').addEventListener('keydown',e=>{ if(e.key==='
 document.getElementById('singleZh').addEventListener('keydown',e=>{ if(e.key==='Enter')doSingleAdd(); });
 document.getElementById('bulkInput').addEventListener('input',updatePreview);
 document.getElementById('parseBtn').addEventListener('click',doBulk);
+
+/* 词库搜索：英文 / 中文 / 词性，空格分隔多个关键词（AND） */
+const searchInput=document.getElementById('searchInput'), searchClear=document.getElementById('searchClear');
+function applySearch(){
+  searchQuery=searchInput.value.trim();
+  searchClear.classList.toggle('hide', !searchQuery);
+  renderList();
+}
+searchInput.addEventListener('input',applySearch);
+searchInput.addEventListener('keydown',e=>{ if(e.key==='Escape'){ searchInput.value=''; applySearch(); } });
+searchClear.addEventListener('click',()=>{ searchInput.value=''; applySearch(); searchInput.focus(); });
 
 document.getElementById('countSlider').addEventListener('input',e=>{ countN=+e.target.value;
   document.getElementById('countVal').textContent=countN; updatePoolHint(); });
