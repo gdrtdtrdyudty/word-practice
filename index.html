@@ -919,6 +919,14 @@ async function initSync(){
     const info=await fetch('./info',{cache:'no-store'});
     if(!info.ok) throw new Error('no info');
     lanInfo=await info.json();
+    // 电脑浏览器里已经填过 Key、但共享数据里还没有 → 自动补一次，手机扫码后就能直接用
+    if(getKey() && !lanInfo.hasKey){
+      try{
+        const kr=await fetch('./key',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({key:getKey()})});
+        if(kr.ok) lanInfo.hasKey=true;
+      }catch(e){}
+    }
     const r=await fetch('./state',{cache:'no-store'});
     if(!r.ok) throw new Error('no state');
     const st=await r.json();
